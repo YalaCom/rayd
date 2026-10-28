@@ -1,0 +1,14 @@
+const vm=require('node:vm');const fs=require('node:fs');const assert=require('node:assert/strict');
+const nodes=new Map();const node=key=>{if(!nodes.has(key))nodes.set(key,{textContent:'',innerHTML:'',hidden:true,scrollTop:0,classList:{add(){},remove(){}},focus(){},append(){}});return nodes.get(key)};
+let stored={},portrait=false,timeouts=[];const ctx=vm.createContext({console,Math,Date,JSON,Number,Set,Blob,URL,document:{querySelector:node,addEventListener(){},visibilityState:'visible',createElement(){return {click(){}}}},localStorage:{getItem:k=>stored[k],setItem:(k,v)=>stored[k]=v},matchMedia:()=>({matches:portrait}),setTimeout:f=>{timeouts.push(f);return timeouts.length},clearTimeout(){},setInterval:()=>1,clearInterval(){},screen:{}});
+vm.runInContext(fs.readFileSync('dist/game.js','utf8'),ctx);const run=s=>vm.runInContext(s,ctx);
+assert.equal(run('state.team.length'),3);assert.equal(run('cost("dragon")'),10);
+run('pack("legend")');assert.equal(run('state.shards'),15);run('pack("legend")');assert.equal(run('state.shards'),25);
+run('pack("gear")');assert.equal(run('state.items.length'),3);run('equipHero(0)');assert.equal(run('stats(state.heroes[0]).hp'),1710);
+run('start("campaign")');assert.equal(run('state.energy'),114);const hp=run('battle.enemy.hp');portrait=true;run('action("attack")');assert.equal(run('battle.enemy.hp'),hp);portrait=false;run('action("attack")');assert.ok(run('battle.enemy.hp')<hp);
+run('finish(true)');assert.equal(run('state.wins'),1);assert.equal(run('state.stage'),2);const silver=run('state.silver');run('finish(true)');assert.equal(run('state.silver'),silver);
+run('battle=null;state.energy=0;start("dragon")');assert.equal(run('battle'),null);run('state.energy=100;state.team=[];start("dragon")');assert.equal(run('battle'),null);
+run('state.team=[0,1,2];start("dragon");finish(true)');assert.equal(run('state.items.length'),3);assert.ok(run('state.items.some(i=>i.name==="Клинок дракона")'));
+assert.equal(run('validSave(state)'),true);assert.equal(run('validSave({...state,team:[0,0]})'),false);assert.equal(run('validSave({...state,items:[{name:"<img onerror=alert(1)>"}]})'),false);
+run('state.heroes[0].gear="<script>"');assert.equal(run('validSave(state)'),false);
+console.log('Passed: free rewards, gear stats, portrait pause, attacks, rewards once, progression, energy/team checks, dungeon loot, import validation');
